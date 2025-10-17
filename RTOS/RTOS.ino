@@ -35,7 +35,7 @@ void loop() {
 
 
 void SM(){
-  static uint8_t state = 0;
+  static uint8_t state = SM_led1; // initial state
 
   switch (state) {
     case SM_led1:
