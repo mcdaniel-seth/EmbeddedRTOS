@@ -9,7 +9,7 @@ volatile bool TimerFlag = false;
 volatile uint32_t period_ms = 100;
 
 // ------ Thermisot setuo ----------
-const uint8_t THERM_PIN = PA4;        // use any ADC-capable pin
+const uint8_t THERM_PIN = D4;        // use any ADC-capable pin
 const float VCC = 3.3f;
 const int ADC_MAX = 4095;             // 12-bit ADC
 const float R_FIXED = 10000.0f;       // 10k resistor
@@ -27,8 +27,8 @@ typedef struct task
 }task;
 
 task TL_task;
-
-task tasks[2];  //set # of tasks
+const int numTasks = 2;
+task tasks[numTasks];  //set # of tasks
 
 // ----- ENUMS -----------
 enum {TL1, TL2}TL_state;
@@ -39,7 +39,15 @@ int Test_TaskLEDs(int state);
 
 // ----- ISR -----------
 void TimerISR() { 
-  TimerFlag = true;  // everytime ISR hits, just rest flag
+    for (unsigned char i = 0; i < numTasks; i++)
+    {
+    if (tasks[i].elapsedTime> tasks[i].period)
+      {
+        tasks[i].state = tasks[i].function(tasks[i].state);
+        tasks[i].elapsedTime = 0;
+      }
+      tasks[i].elapsedTime += period_ms;
+    } 
 }
 
 void setup() {
@@ -59,7 +67,7 @@ void setup() {
   tasks[0].function = &Test_TaskLEDs;
 
   tasks[1].state = 0;
-  tasks[1].period = 500;                 // read every 0.5 s
+  tasks[1].period = 5000;                 // read every 0.5 s
   tasks[1].elapsedTime = tasks[1].period;
   tasks[1].function = &TickFct_Therm;
 
@@ -73,20 +81,6 @@ void loop() {
   noInterrupts();
   TimerFlag = false;
   interrupts();
-
-  if(tasks[0].elapsedTime >= tasks[0].period)
-    {
-        tasks[0].state = tasks[0].function(tasks[0].state);
-        tasks[0].elapsedTime = 0;
-    }
-  tasks[0].elapsedTime += period_ms;
-
-  if(tasks[1].elapsedTime >= tasks[1].period)
-    {
-        tasks[1].state = tasks[1].function(tasks[1].state);
-        tasks[1].elapsedTime = 0;
-    }
-  tasks[1].elapsedTime += period_ms;
 
 
 }
