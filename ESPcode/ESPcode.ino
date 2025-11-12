@@ -36,6 +36,7 @@ void loop() {
     char c = (char)ESPUART.read();
     if (c == '\n') {
       if (line.startsWith("V=")) {
+
         float v = line.substring(2).toFloat();
         Serial.print("Voltage from STM32: ");
         Serial.print(v, 2);
