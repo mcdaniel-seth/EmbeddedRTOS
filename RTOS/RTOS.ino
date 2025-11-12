@@ -8,14 +8,15 @@ HardwareTimer *timer1 = new HardwareTimer(TIM2);
 volatile bool TimerFlag = false;
 volatile uint32_t period_ms = 100;
 
-// ------ Thermisot setuo ----------
-const uint8_t THERM_PIN = D4;        // use any ADC-capable pin
-const float VCC = 3.3f;
-const int ADC_MAX = 4095;             // 12-bit ADC
-const float R_FIXED = 10000.0f;       // 10k resistor
-const float BETA = 3950.0f;           // thermistor Beta constant
-const float T0K  = 298.15f;           // 25°C in Kelvin
-const float R0   = 10000.0f; 
+// ------ Thermistor setup ----------
+const uint8_t THERM_PIN = A0;        
+volatile float tempVolts = 0.0f;
+volatile int adc = 0;                
+
+// ---- Explicit UART on PA10 (RX) / PA9 (TX) ----
+#include <HardwareSerial.h>
+// Order is (RX pin, TX pin):
+HardwareSerial ESPUART(PA10, PA9);
 
 // ------- RTOS TASK TYPE ----------
 typedef struct task
@@ -31,117 +32,78 @@ const int numTasks = 2;
 task tasks[numTasks];  //set # of tasks
 
 // ----- ENUMS -----------
-enum {TL1, TL2}TL_state;
+enum { TL1, TL2 } TL_state;
 
-// -------- State Machine Declarartions ----------
+// -------- State Machine Declarations ----------
 int Test_TaskLEDs(int state);
-
+int TickFct_Therm(int state);
 
 // ----- ISR -----------
-void TimerISR() { 
-    for (unsigned char i = 0; i < numTasks; i++)
+void TimerISR() {
+  for (unsigned char i = 0; i < numTasks; i++) {
+    if (tasks[i].elapsedTime >= tasks[i].period) 
     {
-    if (tasks[i].elapsedTime> tasks[i].period)
-      {
-        tasks[i].state = tasks[i].function(tasks[i].state);
-        tasks[i].elapsedTime = 0;
-      }
-      tasks[i].elapsedTime += period_ms;
-    } 
+      tasks[i].state = tasks[i].function(tasks[i].state);
+      tasks[i].elapsedTime = 0;
+    }
+    tasks[i].elapsedTime += period_ms;
+  }
 }
 
 void setup() {
-  Serial.begin(9600);
-  //state = SM_led1;
+  Serial.begin(9600);                 
+  ESPUART.begin(115200);              // UART on PA9/PA10 to ESP32
+
   pinMode(LED1, OUTPUT);
   pinMode(LED2, OUTPUT);
   pinMode(LED3, OUTPUT);
-
-  // test serial out thermistoe
-  Serial.begin(9600);
   pinMode(THERM_PIN, INPUT_ANALOG);
 
   tasks[0].state = TL1;
-  tasks[0].period = 500;          // this task runs every 1000 ms
+  tasks[0].period = 500;              // LED task period (ms)
   tasks[0].elapsedTime = tasks[0].period;
   tasks[0].function = &Test_TaskLEDs;
 
   tasks[1].state = 0;
-  tasks[1].period = 5000;                 // read every 0.5 s
+  tasks[1].period = 5000;             // thermistor task period (ms)
   tasks[1].elapsedTime = tasks[1].period;
   tasks[1].function = &TickFct_Therm;
 
-  timer1->setOverflow(period_ms * 1000UL, MICROSEC_FORMAT);  // period for timer , it wants in microsec and period is in ms so *1000UL is micro
-  timer1->attachInterrupt(TimerISR);   // link ISR to func
-  timer1->resume(); 
+  timer1->setOverflow(period_ms * 1000UL, MICROSEC_FORMAT);
+  timer1->attachInterrupt(TimerISR);
+  timer1->resume();
+
+  Serial.println("boot");
 }
 
 void loop() {
-  while (!TimerFlag);
-  noInterrupts();
-  TimerFlag = false;
-  interrupts();
-
-
+  // sample ADC 
+  adc = analogRead(THERM_PIN);
+  delay(1500);
 }
 
-
-int Test_TaskLEDs(int state){
-
+int Test_TaskLEDs(int state) {
   switch (state) {
-    case TL1:
-      digitalWrite(LED1, HIGH);
-      digitalWrite(LED2, LOW);
-      break;
-    case TL2:
-      digitalWrite(LED1, LOW);
-      digitalWrite(LED2, HIGH);
-      break;
-    default:
-      digitalWrite(LED1, LOW);
-      digitalWrite(LED2, LOW);
-      break;
-
+    case TL1: digitalWrite(LED1, HIGH); digitalWrite(LED2, LOW);  break;
+    case TL2: digitalWrite(LED1, LOW);  digitalWrite(LED2, HIGH); break;
+    default:  digitalWrite(LED1, LOW);  digitalWrite(LED2, LOW);  break;
   }
-
   switch (state) {
-    case TL1:
-      state = TL2;
-      break;
-    case TL2:
-      state = TL1;
-      break;
-    default:
-      state = TL1;
-      break;
-
+    case TL1: state = TL2; break;
+    case TL2: state = TL1; break;
+    default:  state = TL1; break;
   }
-
   return state;
-
 }
 
 
 int TickFct_Therm(int state) {
-  long sum = 0;
-  const int N = 8; 
-  for (int i = 0; i < N; ++i) {
-    sum += analogRead(THERM_PIN);
-  }
-  int adc = sum / N;
+  int a = adc;                             
+  tempVolts = (a * 3.3f) / 4095.0f;              
 
+  // Send to ESP32 via PA9/PA10 UART
+  ESPUART.print("V=");
+  ESPUART.println(tempVolts, 2);
 
-  float v = (adc * VCC) / ADC_MAX;
-
-  float rTherm = R_FIXED * (v / (VCC - v));
-
-  float invT = (1.0f / T0K) + (1.0f / BETA) * log(rTherm / R0);
-  float tempK = 1.0f / invT;
-  float tempC = tempK - 273.15f;
-
-  Serial.print("Temp: ");
-  Serial.print(tempC, 2); 
-  Serial.println(" °C");
-
-  return state; 
+  return state;
 }
