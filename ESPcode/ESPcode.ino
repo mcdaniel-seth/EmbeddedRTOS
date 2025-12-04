@@ -2,7 +2,7 @@
  
 #define BLYNK_TEMPLATE_ID   "TMPL2z_ZeGRMJ"         // template ID
 #define BLYNK_TEMPLATE_NAME "retryled"              // template name
-#define BLYNK_AUTH_TOKEN    "O4gpJ9Uk9cL95nwtpw4-by20ntx9s7xJ"   // device token
+#define BLYNK_AUTH_TOKEN    ""   // device token
  
 #define BLYNK_PRINT Serial
  
