@@ -1,11 +1,10 @@
-// ================== INCLUDES ==================
+// Rtos code for smart home proj
 #include <Wire.h>
 #include <Adafruit_INA219.h>
 #include <HardwareSerial.h>
 
-// ================== PIN & GLOBAL SETUP ==================
 
-// === FAN SETUP ===
+// Fans
 const uint8_t FAN_RELAY_PIN      = D4;  
 const uint8_t HOT_FAN_RELAY_PIN  = D3;  
 
@@ -22,7 +21,7 @@ volatile int adc = 0;
 HardwareSerial ESPUART(PA10, PA9);
 
 // ---- INA219 Setup ----
-Adafruit_INA219 ina219(0x40);  // Default I2C address
+Adafruit_INA219 ina219(0x40);  // default I2C address
 bool ina_ok = false;
 
 float current_mA = 0;
@@ -49,16 +48,16 @@ enum {
   FAN_STATE_HOT_ON
 } FAN_state;
 
-// -------- State Machine Declarations ----------
+// -------- State Machine setup ----------
 int TickFct_INA(int state);
 int TickFct_Therm(int state);
 int TickFct_Fan(int state);
 void TimerISR();
 
-// ----- Relay Helpers (ACTIVE-LOW) -----
+//  Relays
 void setColdFan(bool on) {
 
-  digitalWrite(FAN_RELAY_PIN, on ? LOW : HIGH);
+  digitalWrite(FAN_RELAY_PIN, on ? LOW : HIGH);   // relays are active low 
 }
 
 void setHotFan(bool on) {
@@ -66,7 +65,6 @@ void setHotFan(bool on) {
   digitalWrite(HOT_FAN_RELAY_PIN, on ? LOW : HIGH);
 }
 
-// ================== SETUP & LOOP ==================
 
 void setup() {
   // USB Serial for debug
@@ -131,7 +129,7 @@ void loop() {
   delay(1500);
 }
 
-// ================== TIMER ISR ==================
+//  TIMER ISR 
 
 void TimerISR() {
   for (unsigned char i = 0; i < numTasks; i++) {
@@ -143,11 +141,11 @@ void TimerISR() {
   }
 }
 
-// ================== INA219 TASK ==================
+//  INA219 TASK 
 
 int TickFct_INA(int state) {
   if (ina_ok) {
-    // ---- Sensor Readings ----
+    // Sensor Readings
     shuntvoltage_mV = ina219.getShuntVoltage_mV();
     busvoltage_V    = ina219.getBusVoltage_V();
     current_mA      = ina219.getCurrent_mA();
@@ -161,20 +159,18 @@ int TickFct_INA(int state) {
     Serial.println("INA219 not available, sending I=0.0");
   }
 
-  // ---- Send current to ESP ----
+  // Send current to ESP
   ESPUART.print("I=");
   ESPUART.println(current_mA, 1); 
 
   return state;
 }
 
-
+// Read Temp TASK 
 
 const float V_REF_POINT      = 0.68f;   // volts
 const float T_REF_POINT_F    = 71.0f;   // deg F at that voltage
 const float V_TO_TEMP_GAIN_F = 150.0f;  // deg F per volt 
-
-// ================== Read Temp TASK ==================
 
 
 int TickFct_Therm(int state) {
@@ -199,14 +195,14 @@ int TickFct_Therm(int state) {
 }
 
 
-
+//FAN CONTROLTASK 
 const float COLD_FAN_ON_V   = 0.55f;  
 const float COLD_FAN_OFF_V  = 0.58f;  
 
 const float HOT_FAN_ON_V    = 0.70f;  
 const float HOT_FAN_OFF_V   = 0.67f;  
 
-// ================== FAN CONTROLTASK ==================
+
 
 int TickFct_Fan(int state) {
   float v = tempVolts;
