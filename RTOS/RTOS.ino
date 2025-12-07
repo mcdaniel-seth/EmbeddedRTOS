@@ -3,7 +3,6 @@
 #include <Adafruit_INA219.h>
 #include <HardwareSerial.h>
 
-
 // Fans
 const uint8_t FAN_RELAY_PIN      = D4;  
 const uint8_t HOT_FAN_RELAY_PIN  = D3;  
@@ -56,15 +55,12 @@ void TimerISR();
 
 //  Relays
 void setColdFan(bool on) {
-
   digitalWrite(FAN_RELAY_PIN, on ? LOW : HIGH);   // relays are active low 
 }
 
 void setHotFan(bool on) {
-  
   digitalWrite(HOT_FAN_RELAY_PIN, on ? LOW : HIGH);
 }
-
 
 void setup() {
   // USB Serial for debug
@@ -85,7 +81,6 @@ void setup() {
   setColdFan(false);
   setHotFan(false);
 
-  
   Wire.begin();   
 
   if (!ina219.begin()) {
@@ -95,7 +90,6 @@ void setup() {
     ina_ok = true;
     Serial.println("INA219 detected.");
   }
-
 
   // Task 0: INA219 current/voltage reading
   tasks[0].state = 0;
@@ -124,13 +118,9 @@ void setup() {
 }
 
 void loop() {
-  // Sample ADC for thermistor in the main loop
-  adc = analogRead(THERM_PIN);
-  delay(1500);
 }
 
 //  TIMER ISR 
-
 void TimerISR() {
   for (unsigned char i = 0; i < numTasks; i++) {
     if (tasks[i].elapsedTime >= tasks[i].period) {
@@ -142,7 +132,6 @@ void TimerISR() {
 }
 
 //  INA219 TASK 
-
 int TickFct_INA(int state) {
   if (ina_ok) {
     // Sensor Readings
@@ -151,8 +140,6 @@ int TickFct_INA(int state) {
     current_mA      = ina219.getCurrent_mA();
     power_mW        = ina219.getPower_mW();
     loadvoltage_V   = busvoltage_V + (shuntvoltage_mV / 1000.0f);
-
-
   } else {
     // if issues with hardware or reading still send 0 
     current_mA = 0.0f;
@@ -167,25 +154,22 @@ int TickFct_INA(int state) {
 }
 
 // Read Temp TASK 
-
 const float V_REF_POINT      = 0.68f;   // volts
 const float T_REF_POINT_F    = 71.0f;   // deg F at that voltage
 const float V_TO_TEMP_GAIN_F = 150.0f;  // deg F per volt 
 
-
 int TickFct_Therm(int state) {
-  int a = adc;
-  tempVolts = (a * 3.3f) / 4095.0f;
+  adc = analogRead(THERM_PIN);
 
+  tempVolts = (adc * 3.3f) / 4095.0f;
   float tempF = T_REF_POINT_F + (V_REF_POINT - tempVolts) * V_TO_TEMP_GAIN_F;
 
   // Send to ESP32 as temp
   ESPUART.print("T=");
   ESPUART.println(tempF, 1);
 
-
   Serial.print("ADC=");
-  Serial.print(a);
+  Serial.print(adc);
   Serial.print("  V=");
   Serial.print(tempVolts, 3);
   Serial.print("  T_F=");
@@ -194,21 +178,17 @@ int TickFct_Therm(int state) {
   return state;
 }
 
-
-//FAN CONTROLTASK 
+// FAN CONTROL TASK 
 const float COLD_FAN_ON_V   = 0.55f;  
 const float COLD_FAN_OFF_V  = 0.58f;  
 
 const float HOT_FAN_ON_V    = 0.70f;  
 const float HOT_FAN_OFF_V   = 0.67f;  
 
-
-
 int TickFct_Fan(int state) {
   float v = tempVolts;
 
   switch (state) {
-
     case FAN_STATE_BOTH_OFF:
       setColdFan(false);
       setHotFan(false);
@@ -231,7 +211,6 @@ int TickFct_Fan(int state) {
       setColdFan(true);
       setHotFan(false);
 
-  
       if (v >= COLD_FAN_OFF_V) {
         setColdFan(false);
         Serial.println("Fan state: BOTH OFF (cooled into comfy band)");
@@ -243,7 +222,6 @@ int TickFct_Fan(int state) {
       setHotFan(true);
       setColdFan(false);
 
-   
       if (v <= HOT_FAN_OFF_V) {
         setHotFan(false);
         Serial.println("Fan state: BOTH OFF (warmed into comfy band)");
